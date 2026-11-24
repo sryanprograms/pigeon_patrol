@@ -172,16 +172,12 @@ while True:
             streak = 0  # must re-confirm before the next shot
 
     # ---------- On-screen status ----------
-    status = f"{state}  {streak}/{CONFIRM_FRAMES}"
-    cv2.putText(
-        frame, status, (20, 40),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.8, WHITE, 2, cv2.LINE_AA,
-    )
-    if state == "FIRING":
-        cv2.putText(
-            frame, "SPRAYING", (20, 80),
-            cv2.FONT_HERSHEY_SIMPLEX, 1.0, YELLOW, 3, cv2.LINE_AA,
-        )
+    if state == "TRACKING":
+        status = f"TRACKING  {min(streak, CONFIRM_FRAMES)}/{CONFIRM_FRAMES}"
+    else:
+        status = state
+    status_color = AQUA if state == "FIRING" else WHITE
+    cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
 
     cv2.imshow("Pigeon Patrol", frame)
     if cv2.waitKey(1) & 0xFF == ord("q"):
