@@ -1,8 +1,9 @@
-import cv2
-import time
 import csv
 import os
+import time
 from datetime import datetime
+
+import cv2
 from ultralytics import YOLO
 
 VIDEO_PATH = "data/pigeons.mov"
@@ -20,6 +21,9 @@ YELLOW = (80, 220, 255)
 WHITE = (255, 255, 255)
 GRAY = (200, 200, 200)
 
+SNAPSHOT_DIR = "snapshots"
+os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
 streak = 0              # how many frames in a row we've seen the bird
 last_center = None      # where the bird was last frame
 state = "IDLE"          # IDLE, TRACKING, FIRING, COOLDOWN
@@ -31,6 +35,7 @@ cap = cv2.VideoCapture(VIDEO_PATH)
 
 class MockTurret:
     """Stand-in for the real turret. Same methods, just prints."""
+
     def aim(self, cx, cy):
         print(f"AIM at ({cx}, {cy})")
 
@@ -40,10 +45,12 @@ class MockTurret:
 
 turret = MockTurret()
 
+
 def draw_marker(frame, cx, cy, size):
     # Thin, faint ring for birds that aren't the current target
     cv2.circle(frame, (cx, cy), size, GRAY, 1, cv2.LINE_AA)
     cv2.circle(frame, (cx, cy), 2, GRAY, -1, cv2.LINE_AA)
+
 
 def distance(a, b):
     return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
@@ -54,13 +61,22 @@ def box_center(box):
     return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
 
-def log_shot(cx, cy, conf):
+def log_shot(cx, cy, conf, image):
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = os.path.join(SNAPSHOT_DIR, f"{ts}.jpg")
+    cv2.imwrite(filename, image)
+
     new_file = not os.path.exists(LOG_PATH)
     with open(LOG_PATH, "a", newline="") as f:
         writer = csv.writer(f)
         if new_file:
             writer.writerow(["timestamp", "cx", "cy", "confidence"])
-        writer.writerow([datetime.now().isoformat(timespec="seconds"), cx, cy, round(conf, 2)])
+        writer.writerow([
+            datetime.now().isoformat(timespec="seconds"),
+            cx,
+            cy,
+            round(conf, 2),
+        ])
 
 
 def draw_scope(frame, cx, cy, size, conf, color=AQUA):
@@ -85,17 +101,20 @@ def draw_scope(frame, cx, cy, size, conf, color=AQUA):
     (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
     lx, ly = cx - tw // 2, cy - r - 10
     cv2.rectangle(frame, (lx - 6, ly - th - 6), (lx + tw + 6, ly + 4), color, -1)
-    cv2.putText(frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1, aa)
+    cv2.putText(
+        frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1, aa
+    )
 
 
 while True:
     ok, frame = cap.read()
+    raw = frame.copy()  # clean frame, no overlays, for training data later
     if not ok:
         break
 
     results = model(frame, classes=[BIRD_CLASS], conf=CONF_THRESHOLD, verbose=False)
     boxes = results[0].boxes
-    confirmed = False                      # reset every frame
+    confirmed = False  # reset every frame
 
     # ---------- Tracking ----------
     if len(boxes) == 0:
@@ -139,7 +158,7 @@ while True:
         if confirmed:
             turret.aim(cx, cy)
             turret.fire(True)
-            log_shot(cx, cy, conf)
+            log_shot(cx, cy, conf, raw)
             state, state_start = "FIRING", now
 
     elif state == "FIRING":
@@ -150,13 +169,19 @@ while True:
     elif state == "COOLDOWN":
         if now - state_start >= COOLDOWN_SEC:
             state = "IDLE"
-            streak = 0                     # must re-confirm before the next shot
+            streak = 0  # must re-confirm before the next shot
 
     # ---------- On-screen status ----------
     status = f"{state}  {streak}/{CONFIRM_FRAMES}"
-    cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, WHITE, 2, cv2.LINE_AA)
+    cv2.putText(
+        frame, status, (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.8, WHITE, 2, cv2.LINE_AA,
+    )
     if state == "FIRING":
-        cv2.putText(frame, "SPRAYING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.0, YELLOW, 3, cv2.LINE_AA)
+        cv2.putText(
+            frame, "SPRAYING", (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX, 1.0, YELLOW, 3, cv2.LINE_AA,
+        )
 
     cv2.imshow("Pigeon Patrol", frame)
     if cv2.waitKey(1) & 0xFF == ord("q"):
