@@ -1,69 +1,165 @@
 import cv2
+import time
+import csv
+import os
+from datetime import datetime
 from ultralytics import YOLO
 
 VIDEO_PATH = "data/pigeons.mov"
-BIRD_CLASS=14 #coco class id for bird
-CONF_THRESHOLD=0.3 #tune later
+BIRD_CLASS = 14         # COCO class id for bird
+CONF_THRESHOLD = 0.3    # tune later
 
-model = YOLO("yolo11n.pt")
-cap=cv2.VideoCapture(VIDEO_PATH)
+CONFIRM_FRAMES = 5      # frames in a row needed to confirm
+MAX_JUMP = 80           # pixels: farther than this = probably a different bird
+BURST_SEC = 0.5         # how long each spray lasts
+COOLDOWN_SEC = 1.0      # wait after a spray before it can fire again
+LOG_PATH = "shots.csv"
 
 AQUA = (255, 200, 0)
+YELLOW = (80, 220, 255)
 WHITE = (255, 255, 255)
+GRAY = (200, 200, 200)
+
+streak = 0              # how many frames in a row we've seen the bird
+last_center = None      # where the bird was last frame
+state = "IDLE"          # IDLE, TRACKING, FIRING, COOLDOWN
+state_start = time.time()
+
+model = YOLO("yolo11n.pt")
+cap = cv2.VideoCapture(VIDEO_PATH)
+
+
+class MockTurret:
+    """Stand-in for the real turret. Same methods, just prints."""
+    def aim(self, cx, cy):
+        print(f"AIM at ({cx}, {cy})")
+
+    def fire(self, on):
+        print("SPLASH ON" if on else "SPLASH OFF")
+
+
+turret = MockTurret()
+
+def draw_marker(frame, cx, cy, size):
+    # Thin, faint ring for birds that aren't the current target
+    cv2.circle(frame, (cx, cy), size, GRAY, 1, cv2.LINE_AA)
+    cv2.circle(frame, (cx, cy), 2, GRAY, -1, cv2.LINE_AA)
+
+def distance(a, b):
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def box_center(box):
+    x1, y1, x2, y2 = box.xyxy[0].tolist()
+    return int((x1 + x2) / 2), int((y1 + y2) / 2)
+
+
+def log_shot(cx, cy, conf):
+    new_file = not os.path.exists(LOG_PATH)
+    with open(LOG_PATH, "a", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(["timestamp", "cx", "cy", "confidence"])
+        writer.writerow([datetime.now().isoformat(timespec="seconds"), cx, cy, round(conf, 2)])
+
 
 def draw_scope(frame, cx, cy, size, conf, color=AQUA):
     r = size
-    aa = cv2.LINE_AA                     # smooth, anti-aliased lines
+    aa = cv2.LINE_AA
 
-    # Soft see-through fill inside the ring
     overlay = frame.copy()
     cv2.circle(overlay, (cx, cy), r, color, -1, aa)
     cv2.addWeighted(overlay, 0.12, frame, 0.88, 0, frame)
 
-    # Thin outer ring
     cv2.circle(frame, (cx, cy), r, color, 2, aa)
 
-    # Short tick marks at 12, 3, 6 and 9 o'clock instead of a full crosshair
     tick = max(6, r // 4)
     cv2.line(frame, (cx, cy - r), (cx, cy - r + tick), color, 2, aa)
     cv2.line(frame, (cx, cy + r), (cx, cy + r - tick), color, 2, aa)
     cv2.line(frame, (cx - r, cy), (cx - r + tick, cy), color, 2, aa)
     cv2.line(frame, (cx + r, cy), (cx + r - tick, cy), color, 2, aa)
 
-    # Small center dot
     cv2.circle(frame, (cx, cy), 3, WHITE, -1, aa)
 
-    # Rounded-looking label above the ring
     label = f"pigeon {conf:.0%}"
     (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
     lx, ly = cx - tw // 2, cy - r - 10
     cv2.rectangle(frame, (lx - 6, ly - th - 6), (lx + tw + 6, ly + 4), color, -1)
     cv2.putText(frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1, aa)
 
+
 while True:
-    ok,frame=cap.read()
+    ok, frame = cap.read()
     if not ok:
         break
 
-    # Run yolo on this frame, birds only
-    results=model(frame, classes=[BIRD_CLASS], conf=CONF_THRESHOLD, verbose=False)
+    results = model(frame, classes=[BIRD_CLASS], conf=CONF_THRESHOLD, verbose=False)
+    boxes = results[0].boxes
+    confirmed = False                      # reset every frame
 
-    for box in results[0].boxes:
-        x1,y1,x2,y2=box.xyxy[0].tolist()
-        conf=float(box.conf)
+    # ---------- Tracking ----------
+    if len(boxes) == 0:
+        streak = 0
+        last_center = None
+    else:
+        if last_center is None:
+            # No target yet: start with the most confident bird
+            best = max(boxes, key=lambda b: float(b.conf))
+        else:
+            # Already tracking: stick with the bird closest to where we last saw it
+            best = min(boxes, key=lambda b: distance(box_center(b), last_center))
 
-        #compute the center of the box
-        cx = int((x1 + x2) / 2)
-        cy = int((y1 + y2) / 2)
-        
-        size = int(max(x2 - x1, y2 - y1) / 2) + 10   # scope scales with the bird
-        draw_scope(frame, cx, cy, size, conf)
+        x1, y1, x2, y2 = best.xyxy[0].tolist()
+        conf = float(best.conf)
+        cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
 
-        #print (cx,cy,conf)
-        print(f"({cx:.2f}, {cy:.2f}, {conf:.2f})")
+        if last_center is None or distance((cx, cy), last_center) > MAX_JUMP:
+            streak = 1
+        else:
+            streak += 1
+
+        last_center = (cx, cy)
+        confirmed = streak >= CONFIRM_FRAMES
+
+        color = YELLOW if confirmed else AQUA
+        size = int(max(x2 - x1, y2 - y1) / 2) + 10
+
+        # Faint ring on every bird the model sees
+        for b in boxes:
+            bx, by = box_center(b)
+            draw_marker(frame, bx, by, 12)
+
+        draw_scope(frame, cx, cy, size, conf, color)
+
+    # ---------- State machine ----------
+    now = time.time()
+
+    if state in ("IDLE", "TRACKING"):
+        state = "TRACKING" if streak > 0 else "IDLE"
+        if confirmed:
+            turret.aim(cx, cy)
+            turret.fire(True)
+            log_shot(cx, cy, conf)
+            state, state_start = "FIRING", now
+
+    elif state == "FIRING":
+        if now - state_start >= BURST_SEC:
+            turret.fire(False)
+            state, state_start = "COOLDOWN", now
+
+    elif state == "COOLDOWN":
+        if now - state_start >= COOLDOWN_SEC:
+            state = "IDLE"
+            streak = 0                     # must re-confirm before the next shot
+
+    # ---------- On-screen status ----------
+    status = f"{state}  {streak}/{CONFIRM_FRAMES}"
+    cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, WHITE, 2, cv2.LINE_AA)
+    if state == "FIRING":
+        cv2.putText(frame, "SPRAYING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.0, YELLOW, 3, cv2.LINE_AA)
 
     cv2.imshow("Pigeon Patrol", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'): #press q to quit
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
 cap.release()
