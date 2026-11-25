@@ -7,6 +7,10 @@ from datetime import datetime
 import cv2
 from ultralytics import YOLO
 
+from uploader import Uploader
+uploader = Uploader()
+spotted_logged = False      # has this bird visit been counted yet?
+
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else "data/pigeons.mov"
 BIRD_CLASS = 14         # COCO class id for bird
 CONF_THRESHOLD = 0.3    # tune later
@@ -98,6 +102,7 @@ def log_shot(cx, cy, conf, raw_image, annotated_image):
     ann_path = os.path.join(SNAPSHOT_DIR, f"shot_{ts}_annotated.jpg")
     cv2.imwrite(raw_path, raw_image)
     cv2.imwrite(ann_path, annotated_image)
+    return raw_path, ann_path
 
     new_file = not os.path.exists(LOG_PATH)
     with open(LOG_PATH, "a", newline="") as f:
@@ -149,12 +154,11 @@ while True:
         streak = 0
         last_center = None
     else:
-        if last_center is None:
-            # No target yet: start with the most confident bird
-            best = max(boxes, key=lambda b: float(b.conf))
+        if last_center is None or distance((cx, cy), last_center) > MAX_JUMP:
+            streak = 1
+            spotted_logged = False          # new bird, not counted yet
         else:
-            # Already tracking: stick with the bird closest to where we last saw it
-            best = min(boxes, key=lambda b: distance(box_center(b), last_center))
+            streak += 1
 
         x1, y1, x2, y2 = best.xyxy[0].tolist()
         conf = float(best.conf)
@@ -167,6 +171,10 @@ while True:
 
         last_center = (cx, cy)
         confirmed = streak >= CONFIRM_FRAMES
+
+        if confirmed and not spotted_logged:
+            uploader.send("spotted", conf, cx, cy)
+            spotted_logged = True
 
         color = YELLOW if confirmed else AQUA
         size = int(max(x2 - x1, y2 - y1) / 2) + 10
@@ -186,7 +194,8 @@ while True:
         if confirmed:
             turret.aim(cx, cy)
             turret.fire(True)
-            log_shot(cx, cy, conf, raw, frame)
+            raw_path, ann_path = log_shot(cx, cy, conf, raw, frame)
+            uploader.send("sprayed", conf, cx, cy, raw_path, ann_path)
             state, state_start = "FIRING", now
 
     elif state == "FIRING":
