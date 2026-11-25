@@ -10,6 +10,10 @@ VIDEO_PATH = "data/pigeons.mov"
 BIRD_CLASS = 14         # COCO class id for bird
 CONF_THRESHOLD = 0.3    # tune later
 
+SHOW_WINDOW = False     # False on the Pi (no screen), True on your Mac
+frame_count = 0
+fps_start = time.time()
+
 CONFIRM_FRAMES = 5      # frames in a row needed to confirm
 MAX_JUMP = 80           # pixels: farther than this = probably a different bird
 BURST_SEC = 0.5         # how long each spray lasts
@@ -179,9 +183,17 @@ while True:
     status_color = AQUA if state == "FIRING" else WHITE
     cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
 
-    cv2.imshow("Pigeon Patrol", frame)
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+    # FPS readout every 30 frames
+    frame_count += 1
+    if frame_count % 30 == 0:
+        fps = 30 / (time.time() - fps_start)
+        print(f"FPS: {fps:.1f}")
+        fps_start = time.time()
+
+    if SHOW_WINDOW:
+        cv2.imshow("Pigeon Patrol", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
 
 cap.release()
 cv2.destroyAllWindows()
