@@ -1,6 +1,6 @@
 <!-- Header banner -->
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00C8FF,100:0050A0&height=220&section=header&text=Pigeon%20Patrol&fontSize=64&fontColor=ffffff&animation=fadeIn&fontAlignY=36&desc=A%20computer%20vision%20water%20turret%20that%20keeps%20pigeons%20off%20my%20roof&descAlignY=58&descSize=18" alt="Pigeon Patrol banner"/>
+  <img src="aiming.jpg" alt="Pigeon Patrol locking onto a pigeon" width="80%"/>
 </p>
 
 <p align="center">
