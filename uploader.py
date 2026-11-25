@@ -7,14 +7,14 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 load_dotenv()
-SUPABASE_URL = os.environ.get("") 
-SUPABASE_KEY = os.environ.get("")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY")
 BUCKET = "turret_media"
 
 
 class Uploader:
     def __init__(self):
-        self.enables = bool(SUPABASE_URL and SUPABASE_KEY)
+        self.enabled = bool(SUPABASE_URL and SUPABASE_KEY)
         if not self.enabled:
             print("Uploader off (no .env found)")
             return
