@@ -29,7 +29,7 @@ My apartment complex has a pigeon problem, and my neighbors are tired of it. Peo
 
 After months of watching this happen, I walked into my leasing office and pitched them a solution, which is this project. Turns out they were actually planning to poison all the pigeons. They told me that if I could make this work, they'd rather go with it. So they agreed, and now I'm building it to save the pigeons from a sudden death and make my apartment a little less gross.
 
-The idea is simple. The turret sees a pigeon, confirms it's actually a pigeon, aims, and gives it a short harmless spray of water. Pigeons hate getting wet, and they learn fast. Nobody gets poisoned, and nobody gets pooped on.
+The idea is simple. The turret sees a pigeon, confirms it's actually a pigeon, aims, and gives it a short harmless spray of water. Pigeons hate getting wet, are easily startled, and they learn fast. Nobody gets poisoned, and nobody gets pooped on.
 
 ```yaml
 project:    Pigeon Patrol
