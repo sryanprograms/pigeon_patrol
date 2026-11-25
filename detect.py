@@ -36,7 +36,7 @@ state_start = time.time()
 
 model = YOLO("yolo11n.pt")
 
-if SOURCE == "camera":
+if SOURCE == "camera":3
     from picamera2 import Picamera2
     picam = Picamera2()
     config = picam.create_video_configuration(main={"size": (1280, 720), "format": "RGB888"})
@@ -64,8 +64,17 @@ class MockTurret:
     def fire(self, on):
         print("SPLASH ON" if on else "SPLASH OFF")
 
+    def shutdown(self):
+        print("SHUTDOWN")
 
-turret = MockTurret()
+
+USE_REAL_TURRET = False   # flip to True once servos + pump are wired
+
+if USE_REAL_TURRET:
+    from turret import Turret
+    turret = Turret()
+else:
+    turret = MockTurret()
 
 
 def draw_marker(frame, cx, cy, size):
