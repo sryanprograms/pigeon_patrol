@@ -1,3 +1,4 @@
+import sys
 import csv
 import os
 import time
@@ -6,7 +7,7 @@ from datetime import datetime
 import cv2
 from ultralytics import YOLO
 
-VIDEO_PATH = "data/pigeons.mov"
+SOURCE = sys.argv[1] if len(sys.argv) > 1 else "data/pigeons.mov"
 BIRD_CLASS = 14         # COCO class id for bird
 CONF_THRESHOLD = 0.3    # tune later
 
@@ -15,7 +16,7 @@ frame_count = 0
 fps_start = time.time()
 
 CONFIRM_FRAMES = 5      # frames in a row needed to confirm
-MAX_JUMP = 80           # pixels: farther than this = probably a different bird
+MAX_JUMP = 150           # pixels: farther than this = probably a different bird
 BURST_SEC = 0.5         # how long each spray lasts
 COOLDOWN_SEC = 1.0      # wait after a spray before it can fire again
 LOG_PATH = "shots.csv"
@@ -34,7 +35,22 @@ state = "IDLE"          # IDLE, TRACKING, FIRING, COOLDOWN
 state_start = time.time()
 
 model = YOLO("yolo11n.pt")
-cap = cv2.VideoCapture(VIDEO_PATH)
+
+if SOURCE == "camera":
+    from picamera2 import Picamera2          # only exists on the Pi
+    picam = Picamera2()
+    config = picam.create_video_configuration(main={"size": (1280, 720), "format": "RGB888"})
+    picam.configure(config)
+    picam.start()
+    time.sleep(1)                            # let the camera warm up
+
+    def read_frame():
+        return True, picam.capture_array()
+else:
+    cap = cv2.VideoCapture(SOURCE)
+
+    def read_frame():
+        return cap.read()
 
 
 class MockTurret:
@@ -111,7 +127,7 @@ def draw_scope(frame, cx, cy, size, conf, color=AQUA):
 
 
 while True:
-    ok, frame = cap.read()
+    ok, frame = read_frame()
     raw = frame.copy()  # clean frame, no overlays, for training data later
     if not ok:
         break
@@ -195,5 +211,9 @@ while True:
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
-cap.release()
+if SOURCE == "camera":
+    picam.stop()
+else:
+    cap.release()
+    
 cv2.destroyAllWindows()
