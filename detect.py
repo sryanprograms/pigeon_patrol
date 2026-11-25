@@ -13,7 +13,7 @@ SOURCE = sys.argv[1] if len(sys.argv) > 1 else "data/pigeons.mov"
 BIRD_CLASS = 14         # COCO class id for bird
 CONF_THRESHOLD = 0.3    # tune later
 
-SHOW_WINDOW = True     # False on the Pi (no screen), True on your Mac
+SHOW_WINDOW = False     # False on the Pi (no screen), True on your Mac
 frame_count = 0
 fps_start = time.time()
 
