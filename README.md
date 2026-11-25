@@ -1,6 +1,6 @@
 <!-- Header banner -->
 <p align="center">
-  <img src="aiming.jpg" alt="Pigeon Patrol locking onto a pigeon" width="80%"/>
+  <img src="demo.jpg" alt="Pigeon Patrol locking onto a pigeon" width="80%"/>
 </p>
 
 <p align="center">
