@@ -9,7 +9,7 @@ from supabase import create_client
 load_dotenv()
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY")
-BUCKET = "turret_media"
+BUCKET = "turret-media"
 
 
 class Uploader:
