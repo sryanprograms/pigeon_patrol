@@ -26,7 +26,7 @@ class Uploader:
         if not self.enabled:
             return
         try:
-            self.q.put.nowait({
+            self.q.put_nowait({
                 "event_type": event_type, "conf": conf, "cx": cx, "cy": cy,
                 "raw_path": raw_path, "ann_path": ann_path,
             })
