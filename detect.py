@@ -81,22 +81,19 @@ def box_center(box):
     return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
 
-def log_shot(cx, cy, conf, image):
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = os.path.join(SNAPSHOT_DIR, f"{ts}.jpg")
-    cv2.imwrite(filename, image)
+def log_shot(cx, cy, conf, raw_image, annotated_image):
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    raw_path = os.path.join(SNAPSHOT_DIR, f"shot_{ts}.jpg")
+    ann_path = os.path.join(SNAPSHOT_DIR, f"shot_{ts}_annotated.jpg")
+    cv2.imwrite(raw_path, raw_image)
+    cv2.imwrite(ann_path, annotated_image)
 
     new_file = not os.path.exists(LOG_PATH)
     with open(LOG_PATH, "a", newline="") as f:
         writer = csv.writer(f)
         if new_file:
-            writer.writerow(["timestamp", "cx", "cy", "confidence"])
-        writer.writerow([
-            datetime.now().isoformat(timespec="seconds"),
-            cx,
-            cy,
-            round(conf, 2),
-        ])
+            writer.writerow(["timestamp", "cx", "cy", "confidence", "snapshot", "annotated"])
+        writer.writerow([datetime.now().isoformat(timespec="seconds"), cx, cy, round(conf, 2), raw_path, ann_path])
 
 
 def draw_scope(frame, cx, cy, size, conf, color=AQUA):
@@ -215,5 +212,5 @@ if SOURCE == "camera":
     picam.stop()
 else:
     cap.release()
-    
+
 cv2.destroyAllWindows()
