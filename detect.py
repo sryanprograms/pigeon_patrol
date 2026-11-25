@@ -175,7 +175,7 @@ while True:
         if confirmed:
             turret.aim(cx, cy)
             turret.fire(True)
-            log_shot(cx, cy, conf, raw)
+            log_shot(cx, cy, conf, raw, frame)
             state, state_start = "FIRING", now
 
     elif state == "FIRING":
