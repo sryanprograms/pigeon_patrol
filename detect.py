@@ -37,12 +37,14 @@ state_start = time.time()
 model = YOLO("yolo11n.pt")
 
 if SOURCE == "camera":
-    from picamera2 import Picamera2          # only exists on the Pi
+    from picamera2 import Picamera2
     picam = Picamera2()
     config = picam.create_video_configuration(main={"size": (1280, 720), "format": "RGB888"})
     picam.configure(config)
     picam.start()
-    time.sleep(1)                            # let the camera warm up
+    from libcamera import controls
+    picam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+    time.sleep(1)                    # let the camera warm up and focus                         # let the camera warm up
 
     def read_frame():
         return True, picam.capture_array()
